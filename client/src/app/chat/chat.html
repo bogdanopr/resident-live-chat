@@ -1,0 +1,80 @@
+<div class="chat-wrapper" [class.blurred]="!joined">
+  <!-- Sidebar: online users -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="status-dot"></span>
+      Online&nbsp;<span class="user-count">({{ users.length }})</span>
+    </div>
+    <ul class="user-list">
+      @for (user of users; track user) {
+      <li class="user-item">
+        <span class="avatar">{{ user.charAt(0).toUpperCase() }}</span>
+        {{ user }}
+      </li>
+      }
+      @empty {
+      <li class="user-item empty">No one here yet</li>
+      }
+    </ul>
+  </aside>
+
+  <!-- Main chat area -->
+  <main class="main">
+    <header class="chat-header">
+      <h1>🏠 Resident Live Chat</h1>
+    </header>
+
+    <!-- Messages -->
+    <div class="messages" #messagesContainer>
+      @if (messages.length === 0) {
+      <div class="empty-state">
+        <span class="empty-icon">💬</span>
+        <p>No messages yet — say hello!</p>
+      </div>
+      }
+      @for (msg of messages; track msg.id) {
+      <div class="message-bubble" [class.pending]="msg.pending">
+        <div class="msg-header">
+          <span class="msg-user">{{ msg.username }}</span>
+          <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
+          @if (msg.pending) {
+          <span class="msg-spinner"></span>
+          }
+        </div>
+        <div class="msg-body">{{ msg.message }}</div>
+      </div>
+      }
+    </div>
+
+    <!-- Input form (Visible only after joining) -->
+    @if (joined) {
+    <form class="chat-form" [formGroup]="chatForm" (ngSubmit)="send()">
+      <div class="joined-as">{{ chatForm.get('username')?.value }}</div>
+      <input class="input input-msg" formControlName="message" placeholder="Type a message…" autocomplete="off" />
+      <button class="btn btn-send" type="submit" [disabled]="!chatForm.get('message')?.value?.trim()">
+        Send
+      </button>
+    </form>
+    }
+  </main>
+</div>
+
+<!-- Login/Join Overlay -->
+@if (!joined) {
+<div class="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-emoji">🏘️</span>
+      <h2>Welcome Neighbor</h2>
+      <p>Please enter your name to join the resident chat.</p>
+    </div>
+    <form [formGroup]="chatForm" (ngSubmit)="join()" class="modal-form">
+      <input class="input modal-input" formControlName="username" placeholder="What's your name?" autocomplete="off"
+        autofocus />
+      <button class="btn btn-join full-width" type="submit" [disabled]="!chatForm.get('username')?.value?.trim()">
+        Enter Chat
+      </button>
+    </form>
+  </div>
+</div>
+}
