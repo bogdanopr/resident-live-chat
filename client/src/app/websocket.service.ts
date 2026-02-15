@@ -1,4 +1,4 @@
-import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
+import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 
 export interface ChatMessage {
@@ -13,7 +13,6 @@ export class WebSocketService implements OnDestroy {
     private socket: WebSocket | null = null;
     private chatSubject = new Subject<ChatMessage>();
     private usersSubject = new Subject<string[]>();
-    private zone = inject(NgZone);
 
     connect(): void {
         if (this.socket) return;
@@ -28,20 +27,18 @@ export class WebSocketService implements OnDestroy {
                 return;
             }
 
-            this.zone.run(() => {
-                if (data.type === 'chat') {
-                    this.chatSubject.next({
-                        id: data.id,
-                        username: data.username,
-                        message: data.message,
-                        timestamp: data.timestamp,
-                    });
-                }
+            if (data.type === 'chat') {
+                this.chatSubject.next({
+                    id: data.id,
+                    username: data.username,
+                    message: data.message,
+                    timestamp: data.timestamp,
+                });
+            }
 
-                if (data.type === 'users') {
-                    this.usersSubject.next(data.users);
-                }
-            });
+            if (data.type === 'users') {
+                this.usersSubject.next(data.users);
+            }
         };
 
         this.socket.onclose = () => {

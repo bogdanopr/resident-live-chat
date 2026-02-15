@@ -5,6 +5,8 @@ import {
     ViewChild,
     ElementRef,
     AfterViewChecked,
+    ChangeDetectorRef,
+    inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -29,10 +31,11 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     private chatSub!: Subscription;
     private usersSub!: Subscription;
 
-    constructor(
-        private fb: FormBuilder,
-        private ws: WebSocketService,
-    ) { }
+    private fb = inject(FormBuilder);
+    private ws = inject(WebSocketService);
+    private cdr = inject(ChangeDetectorRef);
+
+    constructor() { }
 
     ngOnInit(): void {
         this.chatForm = this.fb.group({
@@ -55,10 +58,12 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
                 this.messages.push(msg);
             }
             this.shouldScroll = true;
+            this.cdr.detectChanges(); // Force UI update
         });
 
         this.usersSub = this.ws.onUsers().subscribe((users) => {
             this.users = users;
+            this.cdr.detectChanges(); // Force UI update
         });
     }
 

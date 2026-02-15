@@ -1,80 +1,105 @@
-<div class="chat-wrapper" [class.blurred]="!joined">
-  <!-- Sidebar: online users -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <span class="status-dot"></span>
-      Online&nbsp;<span class="user-count">({{ users.length }})</span>
-    </div>
-    <ul class="user-list">
-      @for (user of users; track user) {
-      <li class="user-item">
-        <span class="avatar">{{ user.charAt(0).toUpperCase() }}</span>
-        {{ user }}
-      </li>
-      }
-      @empty {
-      <li class="user-item empty">No one here yet</li>
-      }
-    </ul>
-  </aside>
-
-  <!-- Main chat area -->
-  <main class="main">
-    <header class="chat-header">
-      <h1>🏠 Resident Live Chat</h1>
-    </header>
-
-    <!-- Messages -->
-    <div class="messages" #messagesContainer>
-      @if (messages.length === 0) {
-      <div class="empty-state">
-        <span class="empty-icon">💬</span>
-        <p>No messages yet — say hello!</p>
+<div class="h-full flex flex-col relative font-sans">
+  <div class="flex h-full w-full transition-[filter] duration-500 ease-out" [class.blur-2xl]="!joined"
+    [class.pointer-events-none]="!joined">
+    <!-- Sidebar: members -->
+    <aside class="hidden md:flex w-72 bg-surface border-r border-divider flex-col z-10 shrink-0">
+      <div class="pt-8 px-6 pb-4 flex items-center gap-3">
+        <span class="w-2 h-2 bg-clay rounded-full"></span>
+        <span class="text-[0.85rem] font-semibold uppercase tracking-wider text-taupe">Members</span>
+        <span class="text-[0.85rem] text-clay ml-auto">{{ users.length }}</span>
       </div>
-      }
-      @for (msg of messages; track msg.id) {
-      <div class="message-bubble" [class.pending]="msg.pending">
-        <div class="msg-header">
-          <span class="msg-user">{{ msg.username }}</span>
-          <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
-          @if (msg.pending) {
-          <span class="msg-spinner"></span>
-          }
+      <ul class="list-none px-4 overflow-y-auto">
+        @for (user of users; track user) {
+        <li class="flex items-center gap-3 p-3 rounded-sm transition-colors duration-200">
+          <span
+            class="w-8 h-8 bg-cream border border-divider flex items-center justify-center rounded-full text-[0.75rem] font-semibold text-taupe">
+            {{ user.charAt(0).toUpperCase() }}
+          </span>
+          <span class="text-[0.95rem] text-charcoal">{{ user }}</span>
+        </li>
+        }
+        @empty {
+        <li class="p-6 text-[0.9rem] text-taupe italic text-center">No active members</li>
+        }
+      </ul>
+    </aside>
+
+    <!-- Main chat area -->
+    <main class="flex-1 flex flex-col bg-cream relative min-w-0">
+      <header class="py-6 px-8 bg-cream border-b border-divider">
+        <div class="max-w-3xl mx-auto w-full flex items-baseline gap-3">
+          <h1 class="text-2xl font-bold tracking-tighter text-charcoal leading-none">Resident</h1>
+          <div class="text-[0.9rem] text-taupe font-normal">Live Chat</div>
         </div>
-        <div class="msg-body">{{ msg.message }}</div>
+      </header>
+
+      <!-- Messages Feed -->
+      <div class="flex-1 overflow-y-auto px-4 md:px-8 py-8 flex flex-col gap-6 scroll-smooth" #messagesContainer>
+        @if (messages.length === 0) {
+        <div class="m-auto text-center text-taupe max-w-[300px] leading-relaxed">
+          <p>Start a conversation with your neighbors.</p>
+        </div>
+        }
+        @for (msg of messages; track msg.id) {
+        <div
+          class="max-w-full md:max-w-[500px] w-fit bg-surface p-4 md:px-5 md:py-4 rounded-sm shadow-sm ring-1 ring-charcoal/5 animate-in fade-in slide-in-from-bottom-2 duration-500"
+          [class.opacity-60]="msg.pending">
+          <div class="flex items-baseline gap-3 mb-2">
+            <span class="text-[0.8rem] font-bold text-clay uppercase tracking-wider">{{ msg.username }}</span>
+            <span class="text-[0.75rem] text-taupe">{{ formatTime(msg.timestamp) }}</span>
+            @if (msg.pending) {
+            <span class="w-1.5 h-1.5 bg-clay rounded-full animate-pulse"></span>
+            }
+          </div>
+          <div class="text-[1rem] leading-relaxed text-charcoal break-words">{{ msg.message }}</div>
+        </div>
+        }
       </div>
+
+      <!-- Composer -->
+      @if (joined) {
+      <footer class="p-6 md:px-8 md:pt-6 md:pb-10 bg-cream border-t border-divider">
+        <form
+          class="max-w-3xl mx-auto flex items-center gap-4 bg-surface px-4 py-2 rounded-full shadow-md border border-divider"
+          [formGroup]="chatForm" (ngSubmit)="send()">
+          <div
+            class="hidden md:block text-[0.75rem] font-bold text-taupe bg-cream px-3 py-1 rounded-full whitespace-nowrap">
+            {{ chatForm.get('username')?.value }}
+          </div>
+          <input
+            class="flex-1 border-none bg-transparent py-3 px-2 font-inherit text-[1rem] text-charcoal outline-none placeholder:text-taupe/40"
+            formControlName="message" placeholder="Write a message..." autocomplete="off" />
+          <button
+            class="bg-charcoal text-white border-none py-2.5 px-6 rounded-full font-semibold text-[0.85rem] cursor-pointer transition-all duration-200 hover:bg-taupe hover:-translate-y-px disabled:opacity-30 disabled:cursor-not-allowed"
+            type="submit" [disabled]="!chatForm.get('message')?.value?.trim()">
+            Send
+          </button>
+        </form>
+      </footer>
       }
-    </div>
-
-    <!-- Input form (Visible only after joining) -->
-    @if (joined) {
-    <form class="chat-form" [formGroup]="chatForm" (ngSubmit)="send()">
-      <div class="joined-as">{{ chatForm.get('username')?.value }}</div>
-      <input class="input input-msg" formControlName="message" placeholder="Type a message…" autocomplete="off" />
-      <button class="btn btn-send" type="submit" [disabled]="!chatForm.get('message')?.value?.trim()">
-        Send
-      </button>
-    </form>
-    }
-  </main>
-</div>
-
-<!-- Login/Join Overlay -->
-@if (!joined) {
-<div class="overlay">
-  <div class="modal">
-    <div class="modal-header">
-      <span class="modal-emoji">🏘️</span>
-      <h2>Welcome Neighbor</h2>
-      <p>Please enter your name to join the resident chat.</p>
-    </div>
-    <form [formGroup]="chatForm" (ngSubmit)="join()" class="modal-form">
-      <input class="input modal-input" formControlName="username" placeholder="What's your name?" autocomplete="off"
-        autofocus />
-      <button class="btn btn-join full-width" type="submit" [disabled]="!chatForm.get('username')?.value?.trim()">
-        Enter Chat
-      </button>
-    </form>
+    </main>
   </div>
+
+  <!-- Entry Overlay -->
+  @if (!joined) {
+  <div
+    class="fixed inset-0 bg-cream/60 backdrop-blur-xl flex items-center justify-center p-6 z-[100] animate-in fade-in duration-700">
+    <div class="bg-surface p-12 rounded-sm w-full max-w-[440px] shadow-2xl ring-1 ring-charcoal/5 text-center">
+      <div class="mb-10">
+        <h2 class="text-[2rem] font-bold tracking-tight mb-3">Welcome</h2>
+        <p class="text-taupe text-[1rem] leading-relaxed">Please identify yourself to enter the resident chat.</p>
+      </div>
+      <form [formGroup]="chatForm" (ngSubmit)="join()" class="flex flex-col gap-4">
+        <input
+          class="w-full p-4 border border-divider rounded-sm font-inherit text-[1.1rem] text-center outline-none transition-colors duration-200 focus:border-clay"
+          formControlName="username" placeholder="Your Name" autocomplete="off" autofocus />
+        <button
+          class="bg-charcoal text-white border-none p-[18px] rounded-sm font-semibold text-[1.1rem] cursor-pointer transition-colors duration-200 hover:bg-taupe disabled:opacity-30"
+          type="submit" [disabled]="!chatForm.get('username')?.value?.trim()">
+          Join Chat
+        </button>
+      </form>
+    </div>
+  </div>
+  }
 </div>
-}
