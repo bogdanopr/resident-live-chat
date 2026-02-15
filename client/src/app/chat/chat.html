@@ -15,7 +15,12 @@
             class="w-8 h-8 bg-cream border border-divider flex items-center justify-center rounded-full text-[0.75rem] font-semibold text-taupe">
             {{ user.charAt(0).toUpperCase() }}
           </span>
-          <span class="text-[0.95rem] text-charcoal">{{ user }}</span>
+          <span class="text-[0.95rem] text-charcoal">
+            {{ user }}
+            @if (user === currentUserName) {
+            <span class="text-clay text-[0.8rem] ml-1">( You )</span>
+            }
+          </span>
         </li>
         }
         @empty {
@@ -41,11 +46,15 @@
         </div>
         }
         @for (msg of messages; track msg.id) {
+        @let isMe = msg.username === currentUserName;
         <div
-          class="max-w-full md:max-w-[500px] w-fit bg-surface p-4 md:px-5 md:py-4 rounded-sm shadow-sm ring-1 ring-charcoal/5 animate-in fade-in slide-in-from-bottom-2 duration-500"
-          [class.opacity-60]="msg.pending">
+          class="max-w-full md:max-w-[500px] w-fit p-4 md:px-5 md:py-4 rounded-sm shadow-sm ring-1 ring-charcoal/5 animate-in fade-in slide-in-from-bottom-2 duration-500"
+          [class.opacity-60]="msg.pending" [class.self-end]="isMe" [class.bg-surface]="!isMe" [class.bg-clay/10]="isMe"
+          [class.border-l-2]="!isMe" [class.border-clay]="!isMe">
           <div class="flex items-baseline gap-3 mb-2">
-            <span class="text-[0.8rem] font-bold text-clay uppercase tracking-wider">{{ msg.username }}</span>
+            <span class="text-[0.8rem] font-bold text-clay uppercase tracking-wider">
+              {{ isMe ? 'You' : msg.username }}
+            </span>
             <span class="text-[0.75rem] text-taupe">{{ formatTime(msg.timestamp) }}</span>
             @if (msg.pending) {
             <span class="w-1.5 h-1.5 bg-clay rounded-full animate-pulse"></span>
@@ -62,10 +71,6 @@
         <form
           class="max-w-3xl mx-auto flex items-center gap-4 bg-surface px-4 py-2 rounded-full shadow-md border border-divider"
           [formGroup]="chatForm" (ngSubmit)="send()">
-          <div
-            class="hidden md:block text-[0.75rem] font-bold text-taupe bg-cream px-3 py-1 rounded-full whitespace-nowrap">
-            {{ chatForm.get('username')?.value }}
-          </div>
           <input
             class="flex-1 border-none bg-transparent py-3 px-2 font-inherit text-[1rem] text-charcoal outline-none placeholder:text-taupe/40"
             formControlName="message" placeholder="Write a message..." autocomplete="off" />

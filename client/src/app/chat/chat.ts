@@ -35,6 +35,10 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     private ws = inject(WebSocketService);
     private cdr = inject(ChangeDetectorRef);
 
+    get currentUserName(): string {
+        return this.chatForm?.get('username')?.value?.trim() || '';
+    }
+
     constructor() { }
 
     ngOnInit(): void {
@@ -62,7 +66,16 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         });
 
         this.usersSub = this.ws.onUsers().subscribe((users) => {
-            this.users = users;
+            const me = this.currentUserName;
+            const others = users.filter(u => u !== me).sort((a, b) => a.localeCompare(b));
+
+            // Only add 'me' to the top if I'm actually in the list from the server
+            if (users.includes(me)) {
+                this.users = [me, ...others];
+            } else {
+                this.users = others;
+            }
+
             this.cdr.detectChanges(); // Force UI update
         });
     }
