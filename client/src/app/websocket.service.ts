@@ -1,6 +1,9 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 
+/**
+ * Represents a standard chat message payload received from or sent to the server.
+ */
 export interface ChatMessage {
     id: string;
     username: string;
@@ -8,73 +11,143 @@ export interface ChatMessage {
     timestamp: number;
 }
 
+/**
+ * Service responsible for managing the low-level WebSocket connection to the backend application.
+ * Handles bidirectional communication, message parsing, and state synchronization for active users.
+ */
 @Injectable({ providedIn: 'root' })
-export class WebSocketService implements OnDestroy {
-    private socket: WebSocket | null = null;
-    private chatSubject = new Subject<ChatMessage>();
-    private usersSubject = new Subject<string[]>();
+export class WebSocketCommunicationService implements OnDestroy {
+    private webSocketInstance: WebSocket | null = null;
+    private chatMessageHistoryStream = new Subject<ChatMessage>();
+    private activeUserListStream = new Subject<string[]>();
 
-    connect(): void {
-        if (this.socket) return;
+    /**
+     * Establishes a connection to the primary WebSocket server.
+     * Configures event listeners for incoming messages, connection closure, and error handling.
+     */
+    public initializeConnection(): void {
+        if (this.webSocketInstance) {
+            return;
+        }
 
-        this.socket = new WebSocket('ws://localhost:3000');
+        // Deployment note: This URL should eventually be derived from environment configuration.
+        this.webSocketInstance = new WebSocket('ws://localhost:3000');
 
-        this.socket.onmessage = (event) => {
-            let data: any;
-            try {
-                data = JSON.parse(event.data);
-            } catch {
-                return;
-            }
-
-            if (data.type === 'chat') {
-                this.chatSubject.next({
-                    id: data.id,
-                    username: data.username,
-                    message: data.message,
-                    timestamp: data.timestamp,
-                });
-            }
-
-            if (data.type === 'users') {
-                this.usersSubject.next(data.users);
-            }
+        this.webSocketInstance.onmessage = (messageEvent: MessageEvent): void => {
+            this.processIncomingWebSocketMessage(messageEvent);
         };
 
-        this.socket.onclose = () => {
-            this.socket = null;
+        this.webSocketInstance.onclose = (): void => {
+            this.handleWebSocketConnectionClosure();
         };
 
-        this.socket.onerror = () => {
-            this.socket?.close();
+        this.webSocketInstance.onerror = (): void => {
+            this.handleWebSocketCommunicationError();
         };
     }
 
-    join(username: string): void {
-        this.send({ type: 'join', username });
+    /**
+     * Sends a join request to the server to register the current user in the active session.
+     * @param username - The unique identifier chosen by the resident.
+     */
+    public registerUserToChatSession(username: string): void {
+        this.emitDataToWebSocketServer({
+            type: 'join',
+            username: username
+        });
     }
 
-    sendChat(username: string, message: string): void {
-        this.send({ type: 'chat', username, message });
+    /**
+     * Packages and sends a user message to the broadcast channel.
+     * @param username - The sender's identity label.
+     * @param messageContent - The raw text content of the message.
+     */
+    public dispatchChatMessage(username: string, messageContent: string): void {
+        this.emitDataToWebSocketServer({
+            type: 'chat',
+            username: username,
+            message: messageContent
+        });
     }
 
-    onChatMessage(): Observable<ChatMessage> {
-        return this.chatSubject.asObservable();
+    /**
+     * Provides a cold stream of incoming chat messages for components to subscribe to.
+     */
+    public observeIncomingChatMessages(): Observable<ChatMessage> {
+        return this.chatMessageHistoryStream.asObservable();
     }
 
-    onUsers(): Observable<string[]> {
-        return this.usersSubject.asObservable();
+    /**
+     * Provides a cold stream of the current online user list for components to subscribe to.
+     */
+    public observeActiveUserListUpdates(): Observable<string[]> {
+        return this.activeUserListStream.asObservable();
     }
 
-    private send(data: object): void {
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            this.socket.send(JSON.stringify(data));
+    /**
+     * Lifecycle hook to ensure resources are released and streams are completed when the service is destroyed.
+     */
+    public ngOnDestroy(): void {
+        this.terminateWebSocketConnection();
+        this.chatMessageHistoryStream.complete();
+        this.activeUserListStream.complete();
+    }
+
+    // ── Internal Helper Methods ─────────────────────────────────────
+
+    private processIncomingWebSocketMessage(messageEvent: MessageEvent): void {
+        let parsedMessageData: any;
+
+        try {
+            parsedMessageData = JSON.parse(messageEvent.data);
+        } catch (jsonParsingError) {
+            // Silently ignore malformed non-JSON data from the server channel
+            return;
+        }
+
+        if (parsedMessageData.type === 'chat') {
+            this.notifyNewChatMessage(parsedMessageData);
+        }
+
+        if (parsedMessageData.type === 'users') {
+            this.notifyActiveUserListChange(parsedMessageData.users);
         }
     }
 
-    ngOnDestroy(): void {
-        this.socket?.close();
-        this.chatSubject.complete();
-        this.usersSubject.complete();
+    private notifyNewChatMessage(chatMessagePayload: any): void {
+        this.chatMessageHistoryStream.next({
+            id: chatMessagePayload.id,
+            username: chatMessagePayload.username,
+            message: chatMessagePayload.message,
+            timestamp: chatMessagePayload.timestamp,
+        });
+    }
+
+    private notifyActiveUserListChange(updatedUserList: string[]): void {
+        this.activeUserListStream.next(updatedUserList);
+    }
+
+    private emitDataToWebSocketServer(dataObject: object): void {
+        const isConnectionEstablished = this.webSocketInstance &&
+            this.webSocketInstance.readyState === WebSocket.OPEN;
+
+        if (isConnectionEstablished) {
+            const dataStringPayload = JSON.stringify(dataObject);
+            this.webSocketInstance!.send(dataStringPayload);
+        }
+    }
+
+    private handleWebSocketConnectionClosure(): void {
+        this.webSocketInstance = null;
+    }
+
+    private handleWebSocketCommunicationError(): void {
+        this.terminateWebSocketConnection();
+    }
+
+    private terminateWebSocketConnection(): void {
+        if (this.webSocketInstance) {
+            this.webSocketInstance.close();
+        }
     }
 }

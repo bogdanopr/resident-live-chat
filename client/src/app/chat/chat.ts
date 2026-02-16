@@ -5,14 +5,23 @@ import {
     ViewChild,
     ElementRef,
     AfterViewChecked,
-    ChangeDetectorRef,
     inject,
+    ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import {
+    ReactiveFormsModule,
+    FormBuilder,
+    FormGroup,
+    Validators,
+} from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { WebSocketService, ChatMessage } from '../websocket.service';
+import { WebSocketCommunicationService, ChatMessage } from '../websocket.service';
 
+/**
+ * Main UI component for the Resident Live Chat application.
+ * Manages the display of message history, the list of online participants, and the chat entry/messaging interface.
+ */
 @Component({
     selector: 'app-chat',
     standalone: true,
@@ -20,117 +29,195 @@ import { WebSocketService, ChatMessage } from '../websocket.service';
     templateUrl: './chat.html',
     styleUrl: './chat.css',
 })
-export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
-    @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
+export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewChecked {
+    /** 
+     * Reference to the scrollable message viewport to enable automatic scrolling to the latest message.
+     */
+    @ViewChild('messagesContainer')
+    private messagesContainerElementReference!: ElementRef;
 
-    chatForm!: FormGroup;
-    messages: (ChatMessage & { pending?: boolean })[] = [];
-    users: string[] = [];
-    joined = false;
-    private shouldScroll = false;
-    private chatSub!: Subscription;
-    private usersSub!: Subscription;
+    public clientChatFormGroup!: FormGroup;
+    public chatMessageHistory: (ChatMessage & { pending?: boolean })[] = [];
+    public onlineParticipantNameList: string[] = [];
+    public isUserJoinedToConversation = false;
 
-    private fb = inject(FormBuilder);
-    private ws = inject(WebSocketService);
-    private cdr = inject(ChangeDetectorRef);
+    private isAutomaticScrollRequired = false;
+    private incomingChatMessageSubscription!: Subscription;
+    private activeParticipantListSubscription!: Subscription;
 
-    get currentUserName(): string {
-        return this.chatForm?.get('username')?.value?.trim() || '';
+    private readonly formBuilder = inject(FormBuilder);
+    private readonly webSocketCommunicationService = inject(WebSocketCommunicationService);
+    private readonly changeDetectorReference = inject(ChangeDetectorRef);
+
+    /**
+     * Getter to retrieve the sanitized username from the form group.
+     */
+    public get currentAuthenticatedUsername(): string {
+        return this.clientChatFormGroup?.get('username')?.value?.trim() || '';
     }
 
-    constructor() { }
+    public constructor() { }
 
-    ngOnInit(): void {
-        this.chatForm = this.fb.group({
-            username: ['', Validators.required],
-            message: ['', Validators.required],
-        });
-
-        this.ws.connect();
-
-        this.chatSub = this.ws.onChatMessage().subscribe((msg) => {
-            // Try to match an optimistic (pending) message
-            const pendingIdx = this.messages.findIndex(
-                (m) => m.pending && m.username === msg.username && m.message === msg.message
-            );
-            if (pendingIdx !== -1) {
-                // Confirm: replace pending with server-confirmed message
-                this.messages[pendingIdx] = { ...msg, pending: false };
-            } else {
-                // Message from another user
-                this.messages.push(msg);
-            }
-            this.shouldScroll = true;
-            this.cdr.detectChanges(); // Force UI update
-        });
-
-        this.usersSub = this.ws.onUsers().subscribe((users) => {
-            const me = this.currentUserName;
-            const others = users.filter(u => u !== me).sort((a, b) => a.localeCompare(b));
-
-            // Only add 'me' to the top if I'm actually in the list from the server
-            if (users.includes(me)) {
-                this.users = [me, ...others];
-            } else {
-                this.users = others;
-            }
-
-            this.cdr.detectChanges(); // Force UI update
-        });
+    public ngOnInit(): void {
+        this.initializeClientChatForm();
+        this.establishWebSocketConnectionAndSubscriptions();
     }
 
-    ngAfterViewChecked(): void {
-        if (this.shouldScroll) {
-            this.scrollToBottom();
-            this.shouldScroll = false;
+    public ngOnDestroy(): void {
+        this.terminateAllActiveSubscriptions();
+    }
+
+    public ngAfterViewChecked(): void {
+        this.performAutomaticScrollToBottomIfRequired();
+    }
+
+    /**
+     * Registers the user with the WebSocket server and grants access to the chat interface.
+     */
+    public joinResidentConversationalCircle(): void {
+        const trimmedUsername = this.currentAuthenticatedUsername;
+
+        if (trimmedUsername) {
+            this.webSocketCommunicationService.registerUserToChatSession(trimmedUsername);
+            this.isUserJoinedToConversation = true;
+            this.changeDetectorReference.detectChanges();
         }
     }
 
-    join(): void {
-        const username = this.chatForm.get('username')?.value?.trim();
-        if (!username) return;
-        this.ws.join(username);
-        this.joined = true;
+    /**
+     * Packages the current form message, performs an optimistic UI update, and dispatches to the server.
+     */
+    public dispatchNewChatMessage(): void {
+        const trimmedMessageContent = this.clientChatFormGroup.get('message')?.value?.trim();
+        const authenticatedUsername = this.currentAuthenticatedUsername;
+
+        if (trimmedMessageContent && authenticatedUsername) {
+            this.appendOptimisticMessageToHistory(authenticatedUsername, trimmedMessageContent);
+            this.isAutomaticScrollRequired = true;
+            this.changeDetectorReference.detectChanges();
+
+            this.webSocketCommunicationService.dispatchChatMessage(authenticatedUsername, trimmedMessageContent);
+
+            // Clear input field after successful dispatch
+            this.clientChatFormGroup.get('message')?.reset();
+        }
     }
 
-    send(): void {
-        if (!this.chatForm.valid) return;
-        const { username, message } = this.chatForm.value;
-        if (!username?.trim() || !message?.trim()) return;
+    /**
+     * Converts a raw numeric timestamp into a human-readable HH:MM format.
+     * @param numericTimestamp - Unix timestamp in milliseconds.
+     */
+    public formatTimestampForDisplay(numericTimestamp: number): string {
+        const dateObject = new Date(numericTimestamp);
+        const hoursString = dateObject.getHours().toString().padStart(2, '0');
+        const minutesString = dateObject.getMinutes().toString().padStart(2, '0');
 
-        const trimUser = username.trim();
-        const trimMsg = message.trim();
+        return `${hoursString}:${minutesString}`;
+    }
 
-        // Optimistic: show immediately with pending spinner
-        this.messages.push({
-            id: '__pending_' + Date.now(),
-            username: trimUser,
-            message: trimMsg,
+    /**
+     * Helper to identify if a specific message was sent by the local authenticated user.
+     * @param senderUsername - The username associated with a chat message.
+     */
+    public isMessageSentByCurrentUser(senderUsername: string): boolean {
+        return senderUsername === this.currentAuthenticatedUsername;
+    }
+
+    // ── Internal Lifecycle & Setup Helpers ──────────────────────────
+
+    private initializeClientChatForm(): void {
+        this.clientChatFormGroup = this.formBuilder.group({
+            username: ['', Validators.required],
+            message: ['', Validators.required],
+        });
+    }
+
+    private establishWebSocketConnectionAndSubscriptions(): void {
+        this.webSocketCommunicationService.initializeConnection();
+        this.subscribeToIncomingChatMessages();
+        this.subscribeToActiveParticipantListUpdates();
+    }
+
+    private subscribeToIncomingChatMessages(): void {
+        this.incomingChatMessageSubscription = this.webSocketCommunicationService
+            .observeIncomingChatMessages()
+            .subscribe((newIncomingMessage: ChatMessage) => {
+                this.handleIncomingChatMessage(newIncomingMessage);
+            });
+    }
+
+    private subscribeToActiveParticipantListUpdates(): void {
+        this.activeParticipantListSubscription = this.webSocketCommunicationService
+            .observeActiveUserListUpdates()
+            .subscribe((updatedParticipantList: string[]) => {
+                this.handleActiveParticipantListSynchronization(updatedParticipantList);
+            });
+    }
+
+    private handleIncomingChatMessage(newIncomingMessage: ChatMessage): void {
+        const isIncomingMessageFromSelf = this.isMessageSentByCurrentUser(newIncomingMessage.username);
+
+        if (isIncomingMessageFromSelf) {
+            // Resolve optimistic UI: Remove the oldest pending message that matches the same content
+            const indexOfMatchingPendingMessage = this.chatMessageHistory.findIndex(
+                (message) => message.pending === true && message.message === newIncomingMessage.message
+            );
+
+            if (indexOfMatchingPendingMessage !== -1) {
+                this.chatMessageHistory.splice(indexOfMatchingPendingMessage, 1);
+            }
+        }
+
+        this.chatMessageHistory.push(newIncomingMessage);
+        this.isAutomaticScrollRequired = true;
+        this.changeDetectorReference.detectChanges();
+    }
+
+    private handleActiveParticipantListSynchronization(rawList: string[]): void {
+        const ownUsername = this.currentAuthenticatedUsername;
+
+        // Pin current user to the top, then sort others alphabetically
+        const otherParticipants = rawList
+            .filter((participantName) => participantName !== ownUsername)
+            .sort((a, b) => a.localeCompare(b));
+
+        const isLocalUserInServerList = rawList.includes(ownUsername);
+
+        if (isLocalUserInServerList) {
+            this.onlineParticipantNameList = [ownUsername, ...otherParticipants];
+        } else {
+            this.onlineParticipantNameList = otherParticipants;
+        }
+
+        this.changeDetectorReference.detectChanges();
+    }
+
+    private appendOptimisticMessageToHistory(username: string, content: string): void {
+        const temporaryMessageId = `pending-message-${Date.now()}`;
+
+        this.chatMessageHistory.push({
+            id: temporaryMessageId,
+            username: username,
+            message: content,
             timestamp: Date.now(),
             pending: true,
         });
-        this.shouldScroll = true;
-
-        this.ws.sendChat(trimUser, trimMsg);
-        this.chatForm.patchValue({ message: '' });
     }
 
-    formatTime(ts: number): string {
-        const d = new Date(ts);
-        return d.toLocaleTimeString('en-GB', { hour12: false });
+    private performAutomaticScrollToBottomIfRequired(): void {
+        if (this.isAutomaticScrollRequired && this.messagesContainerElementReference) {
+            const viewport = this.messagesContainerElementReference.nativeElement;
+            viewport.scrollTop = viewport.scrollHeight;
+            this.isAutomaticScrollRequired = false;
+        }
     }
 
-    private scrollToBottom(): void {
-        try {
-            const el = this.messagesContainer?.nativeElement;
-            if (el) el.scrollTop = el.scrollHeight;
-        } catch { }
-    }
-
-    ngOnDestroy(): void {
-        this.chatSub?.unsubscribe();
-        this.usersSub?.unsubscribe();
-        this.ws.ngOnDestroy();
+    private terminateAllActiveSubscriptions(): void {
+        if (this.incomingChatMessageSubscription) {
+            this.incomingChatMessageSubscription.unsubscribe();
+        }
+        if (this.activeParticipantListSubscription) {
+            this.activeParticipantListSubscription.unsubscribe();
+        }
     }
 }

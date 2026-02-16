@@ -4,83 +4,134 @@ const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const crypto = require('crypto');
 
-// ── Express setup ──────────────────────────────────────────────
-const app = express();
-app.use(cors({ origin: 'http://localhost:4200' }));
-app.use(express.json());
+// ── Configuration & Constants ───────────────────────────────────
+const SERVER_LISTENING_PORT = process.env.PORT || 3000;
+const CLIENT_ORIGIN_URL = 'http://localhost:4200';
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+// ── Application Initialization ──────────────────────────────────
+const expressApplication = express();
+expressApplication.use(cors({ origin: CLIENT_ORIGIN_URL }));
+expressApplication.use(express.json());
+
+/**
+ * Health check endpoint for monitoring service status.
+ */
+expressApplication.get('/health', (request, response) => {
+  response.json({ status: 'ok' });
 });
 
-// ── HTTP + WebSocket server ────────────────────────────────────
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+// ── Server & WebSocket Infrastructure ───────────────────────────
+const httpServer = http.createServer(expressApplication);
+const webSocketServerHost = new WebSocketServer({ server: httpServer });
 
-/** @type {Map<import('ws').WebSocket, string>} */
-const clients = new Map();
+/** 
+ * Map of active WebSocket connections to their associated usernames.
+ * @type {Map<import('ws').WebSocket, string>} 
+ */
+const connectedClientIdentityMap = new Map();
 
-function broadcastUsers() {
-  const users = [...clients.values()];
-  const payload = JSON.stringify({ type: 'users', users });
-  for (const ws of clients.keys()) {
-    if (ws.readyState === ws.OPEN) ws.send(payload);
-  }
+// ── Broadcast Logic ─────────────────────────────────────────────
+
+/**
+ * Iterates through all active WebSocket connections and sends the current list of online users.
+ * This ensures all clients have a synchronized view of the conversation participants.
+ */
+function broadcastActiveUserListToAllClients() {
+  const activeUsernameList = Array.from(connectedClientIdentityMap.values());
+  const userListPayloadString = JSON.stringify({
+    type: 'users',
+    users: activeUsernameList
+  });
+
+  connectedClientIdentityMap.forEach((username, individualWebSocket) => {
+    if (individualWebSocket.readyState === individualWebSocket.OPEN) {
+      individualWebSocket.send(userListPayloadString);
+    }
+  });
 }
 
-function broadcastChat(msg) {
-  const payload = JSON.stringify(msg);
-  for (const ws of clients.keys()) {
-    if (ws.readyState === ws.OPEN) ws.send(payload);
-  }
+/**
+ * Dispatches a single chat message to every connected client.
+ * @param {object} chatMessageObject - The pre-constructed message object to be stringified.
+ */
+function broadcastChatMessageToAllClients(chatMessageObject) {
+  const chatMessagePayloadString = JSON.stringify(chatMessageObject);
+
+  connectedClientIdentityMap.forEach((username, individualWebSocket) => {
+    if (individualWebSocket.readyState === individualWebSocket.OPEN) {
+      individualWebSocket.send(chatMessagePayloadString);
+    }
+  });
 }
 
-wss.on('connection', (ws) => {
-  ws.on('message', (raw) => {
-    let data;
+// ── Event Handling ──────────────────────────────────────────────
+
+webSocketServerHost.on('connection', (individualWebSocketConnection) => {
+
+  individualWebSocketConnection.on('message', (rawIncomingDataBuffer) => {
+    let parsedIncomingData;
+
     try {
-      data = JSON.parse(raw);
-    } catch {
-      // invalid JSON — ignore silently
+      parsedIncomingData = JSON.parse(rawIncomingDataBuffer);
+    } catch (jsonParsingError) {
+      // Ignore malformed payloads that do not conform to JSON standards
       return;
     }
 
-    if (data.type === 'join') {
-      const username = (data.username || '').toString().trim();
-      if (!username) return;
-      clients.set(ws, username);
-      broadcastUsers();
+    if (parsedIncomingData.type === 'join') {
+      const requestedUsername = (parsedIncomingData.username || '').toString().trim();
+
+      if (isValidUsername(requestedUsername)) {
+        connectedClientIdentityMap.set(individualWebSocketConnection, requestedUsername);
+        broadcastActiveUserListToAllClients();
+      }
     }
 
-    if (data.type === 'chat') {
-      const username = (data.username || '').toString().trim();
-      const message = (data.message || '').toString().trim();
-      if (!username || !message) return;
+    if (parsedIncomingData.type === 'chat') {
+      const senderUsername = (parsedIncomingData.username || '').toString().trim();
+      const messageContent = (parsedIncomingData.message || '').toString().trim();
 
-      broadcastChat({
-        type: 'chat',
-        id: crypto.randomUUID(),
-        username,
-        message,
-        timestamp: Date.now(),
-      });
+      if (isValidMessagePayload(senderUsername, messageContent)) {
+        const uniqueMessageIdentifier = crypto.randomUUID();
+        const chatMessagePayload = {
+          type: 'chat',
+          id: uniqueMessageIdentifier,
+          username: senderUsername,
+          message: messageContent,
+          timestamp: Date.now(),
+        };
+
+        broadcastChatMessageToAllClients(chatMessagePayload);
+      }
     }
   });
 
-  ws.on('close', () => {
-    clients.delete(ws);
-    broadcastUsers();
+  individualWebSocketConnection.on('close', () => {
+    removeClientAndSynchronizeState(individualWebSocketConnection);
   });
 
-  ws.on('error', () => {
-    clients.delete(ws);
-    broadcastUsers();
+  individualWebSocketConnection.on('error', () => {
+    removeClientAndSynchronizeState(individualWebSocketConnection);
   });
 });
 
-// ── Start ──────────────────────────────────────────────────────
-const PORT = 3000;
-server.listen(PORT, () => {
-  console.log(`Server running → http://localhost:${PORT}`);
-  console.log(`WebSocket ready → ws://localhost:${PORT}`);
+// ── Internal Helpers ────────────────────────────────────────────
+
+function isValidUsername(usernameString) {
+  return usernameString.length > 0;
+}
+
+function isValidMessagePayload(username, message) {
+  return username.length > 0 && message.length > 0;
+}
+
+function removeClientAndSynchronizeState(webSocketReference) {
+  connectedClientIdentityMap.delete(webSocketReference);
+  broadcastActiveUserListToAllClients();
+}
+
+// ── Start Execution ─────────────────────────────────────────────
+httpServer.listen(SERVER_LISTENING_PORT, () => {
+  console.log(`Server application initialized and listening on port ${SERVER_LISTENING_PORT}`);
+  console.log(`WebSocket communication channel ready at ws://localhost:${SERVER_LISTENING_PORT}`);
 });
