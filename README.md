@@ -1,6 +1,6 @@
 # resident live chat
 
-a simple, real-time chat application for residents of a building complex. built with angular 19 (zoneless) and node.js (websocket).
+a simple real-time chat app for "residents of a building complex" built with angular 19 (zoneless) and node.js .
 
 ## quick start
 
@@ -44,24 +44,11 @@ the app will be available at http://localhost:4200.
   - input sanitization (xss protection)
   - websocket payload size limits (16kb)
 
-## hosting on render (free tier)
+## hosted on Render
+NOTE: this app is hosted on Render's free tier. if the app hasn't been used in a while, the backend service will "spin down" to save resources. when you first visit the link, it may take 30-60 seconds for the server to wake up and the chat to become active.
 
-this project is configured for zero-touch deployment on render using the included render.yaml (blueprints).
+this project is configured for zero-touch deployment on render using the included render.yaml (render blueprints) and is currently live here: 
+https://res-chat-ui.onrender.com/
 
-### 1. simple deployment
-1. push your code to a github repository.
-2. in the render dashboard, click new + and select blueprint.
-3. connect your github repository.
-4. render will automatically detect the render.yaml and set up both the api (backend) and ui (frontend).
 
-### 2. manual configuration (alternative)
-- backend (web service):
-  - root directory: server
-  - build command: npm install
-  - start command: node server.js
-  - add environment variable: client_origin_url (set to your frontend url).
-- frontend (static site):
-  - root directory: client
-  - build command: npm install && wss_url=$(echo $backend_url | sed 's/http/ws/') && sed -i "s|ws://localhost:3005|$wss_url|g" src/environments/environment.ts && npm run build
-  - publish directory: dist/client/browser
-  - add environment variable: backend_url (set to your backend web service url).
+
