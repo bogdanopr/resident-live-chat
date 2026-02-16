@@ -21,10 +21,11 @@ services:
     rootDir: client
     buildCommand: |
       npm install
-      # Replace the local WebSocket URL with the production WSS URL
-      # WSS_URL is derived from BACKEND_URL (https://... -> wss://...)
+      # Ensure fresh build and replace WebSocket URL
       WSS_URL=$(echo $BACKEND_URL | sed 's/http/ws/')
+      # Update both environment.ts and verify its content
       sed -i "s|ws://localhost:3005|$WSS_URL|g" src/environments/environment.ts
+      sed -i "s|production: false|production: true|g" src/environments/environment.ts
       npm run build
     staticPublishPath: dist/client/browser
     envVars:
