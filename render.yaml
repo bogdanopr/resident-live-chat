@@ -2,6 +2,7 @@ services:
   # 1. Backend Web Service (Node.js)
   - type: web
     name: res-chat-api
+    plan: free
     runtime: node
     rootDir: server
     buildCommand: npm install
