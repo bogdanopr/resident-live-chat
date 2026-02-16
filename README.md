@@ -19,7 +19,7 @@ navigate to the server directory and install dependencies:
 cd server
 npm install
 ```
-create a .env file in the server root if you want to customize the port (defaults to 3005).
+
 
 start the server:
 ```bash
