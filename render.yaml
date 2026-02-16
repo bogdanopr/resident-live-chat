@@ -14,7 +14,7 @@ services:
           property: url
 
   # 2. Frontend Static Site (Angular)
-  - type: static_site
+  - type: static
     name: res-chat-ui
     runtime: static
     rootDir: client
