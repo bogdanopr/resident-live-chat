@@ -3,12 +3,17 @@
 a simple real-time chat app for "residents of a building complex" built with angular 19 (zoneless) and node.js .
 
 ## quick start
+## app is hosted on Render
+NOTE: this app is hosted on Render's free tier. if the app hasn't been used in a while, the backend service will "spin down" to save resources. when you first visit the link, it may take 30-60 seconds for the server to wake up and the chat to become active.
 
-### 1. prerequisites
+this project is configured for zero-touch deployment on render using the included render.yaml (render blueprints) and is currently live here: 
+https://res-chat-ui.onrender.com/
+
+### if you want to test locally these are the prerequisites:
 - node.js (v18 or higher recommended)
 - npm
 
-### 2. server setup (backend)
+### server setup (backend)
 navigate to the server directory and install dependencies:
 ```bash
 cd server
@@ -21,7 +26,7 @@ start the server:
 npm start
 ```
 
-### 3. client setup (frontend)
+### client setup (frontend)
 navigate to the client directory and install dependencies:
 ```bash
 cd client
@@ -44,11 +49,6 @@ the app will be available at http://localhost:4200.
   - input sanitization (xss protection)
   - websocket payload size limits (16kb)
 
-## hosted on Render
-NOTE: this app is hosted on Render's free tier. if the app hasn't been used in a while, the backend service will "spin down" to save resources. when you first visit the link, it may take 30-60 seconds for the server to wake up and the chat to become active.
-
-this project is configured for zero-touch deployment on render using the included render.yaml (render blueprints) and is currently live here: 
-https://res-chat-ui.onrender.com/
 
 
 
