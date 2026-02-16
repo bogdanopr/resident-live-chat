@@ -1,0 +1,34 @@
+services:
+  # 1. Backend Web Service (Node.js)
+  - type: web
+    name: res-chat-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: CLIENT_ORIGIN_URL
+        fromService:
+          name: res-chat-ui
+          type: static_site
+          property: url
+
+  # 2. Frontend Static Site (Angular)
+  - type: static_site
+    name: res-chat-ui
+    runtime: static
+    rootDir: client
+    buildCommand: |
+      npm install
+      # Replace the local WebSocket URL with the production WSS URL
+      # WSS_URL is derived from BACKEND_URL (https://... -> wss://...)
+      WSS_URL=$(echo $BACKEND_URL | sed 's/http/ws/')
+      sed -i "s|ws://localhost:3005|$WSS_URL|g" src/environments/environment.ts
+      npm run build
+    publishDir: dist/client/browser
+    envVars:
+      - key: BACKEND_URL
+        fromService:
+          name: res-chat-api
+          type: web
+          property: url

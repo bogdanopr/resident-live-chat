@@ -44,7 +44,24 @@ The app will be available at `http://localhost:4200`.
   - Input sanitization (XSS protection)
   - WebSocket payload size limits (16KB)
 
-## 🏗️ Technical Stack
-- **Frontend**: Angular 19, RxJS, Tailwind CSS
-- **Backend**: Node.js, Express, `ws` (WebSocket)
-- **Configuration**: `dotenv` (Server), Angular Environments (Client)
+## 🌐 Hosting on Render (Free Tier)
+
+This project is configured for **Zero-Touch Deployment** on Render using the included `render.yaml` (Blueprints).
+
+### 1. Simple Deployment
+1. Push your code to a GitHub repository.
+2. In the [Render Dashboard](https://dashboard.render.com/), click **New +** and select **Blueprint**.
+3. Connect your GitHub repository.
+4. Render will automatically detect the `render.yaml` and set up both the **API (Backend)** and **UI (Frontend)**.
+
+### 2. Manual Configuration (Alternative)
+- **Backend (Web Service)**:
+  - Root Directory: `server`
+  - Build Command: `npm install`
+  - Start Command: `node server.js`
+  - Add Environment Variable: `CLIENT_ORIGIN_URL` (set to your frontend URL).
+- **Frontend (Static Site)**:
+  - Root Directory: `client`
+  - Build Command: `npm install && WSS_URL=$(echo $BACKEND_URL | sed 's/http/ws/') && sed -i "s|ws://localhost:3005|$WSS_URL|g" src/environments/environment.ts && npm run build`
+  - Publish Directory: `dist/client/browser`
+  - Add Environment Variable: `BACKEND_URL` (set to your backend Web Service URL).

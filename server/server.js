@@ -10,7 +10,9 @@ const SERVER_LISTENING_PORT = process.env.PORT || 3005;
 const CLIENT_ORIGIN_URL = process.env.CLIENT_ORIGIN_URL || 'http://localhost:4200';
 
 const expressApplication = express();
-expressApplication.use(cors({ origin: CLIENT_ORIGIN_URL }));
+expressApplication.use(cors({
+  origin: CLIENT_ORIGIN_URL.replace(/\/$/, '') // Remove trailing slash if present
+}));
 expressApplication.use(express.json({ limit: '10kb' }));
 
 expressApplication.get('/health', (req, res) => res.json({ status: 'ok' }));
