@@ -10,7 +10,7 @@ this project is configured for zero-touch deployment on render using the include
 https://res-chat-ui.onrender.com/
 
 ### if you want to test locally these are the prerequisites:
-- node.js (v18 or higher recommended)
+- node.js 
 - npm
 
 ### server setup (backend)
