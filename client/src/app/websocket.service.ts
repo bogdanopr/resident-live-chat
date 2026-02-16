@@ -1,8 +1,9 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
+import { environment } from '../environments/environment';
 
 /**
- * Represents a standard chat message payload received from or sent to the server.
+ * represents a standard chat message payload received from or sent to the server.
  */
 export interface ChatMessage {
     id: string;
@@ -12,8 +13,8 @@ export interface ChatMessage {
 }
 
 /**
- * Service responsible for managing the low-level WebSocket connection to the backend application.
- * Handles bidirectional communication, message parsing, and state synchronization for active users.
+ * service responsible for managing the low-level websocket connection to the backend application.
+ * handles bidirectional communication, message parsing, and state synchronization for active users.
  */
 @Injectable({ providedIn: 'root' })
 export class WebSocketCommunicationService implements OnDestroy {
@@ -22,16 +23,20 @@ export class WebSocketCommunicationService implements OnDestroy {
     private activeUserListStream = new Subject<string[]>();
 
     /**
-     * Establishes a connection to the primary WebSocket server.
-     * Configures event listeners for incoming messages, connection closure, and error handling.
+     * establishes a connection to the primary websocket server.
+     * configures event listeners for incoming messages, connection closure, and error handling.
      */
     public initializeConnection(): void {
         if (this.webSocketInstance) {
             return;
         }
 
-        // Deployment note: This URL should eventually be derived from environment configuration.
-        this.webSocketInstance = new WebSocket('ws://localhost:3000');
+        this.webSocketInstance = new WebSocket(environment.websocketUrl);
+
+        this.webSocketInstance.onopen = (): void => {
+            console.log('WebSocket connection established.');
+            this.flushMessageQueueAfterConnection();
+        };
 
         this.webSocketInstance.onmessage = (messageEvent: MessageEvent): void => {
             this.processIncomingWebSocketMessage(messageEvent);
@@ -47,8 +52,8 @@ export class WebSocketCommunicationService implements OnDestroy {
     }
 
     /**
-     * Sends a join request to the server to register the current user in the active session.
-     * @param username - The unique identifier chosen by the resident.
+     * sends a join request to the server to register the current user in the active session.
+     * @param username - the unique identifier chosen by the resident.
      */
     public registerUserToChatSession(username: string): void {
         this.emitDataToWebSocketServer({
@@ -58,9 +63,9 @@ export class WebSocketCommunicationService implements OnDestroy {
     }
 
     /**
-     * Packages and sends a user message to the broadcast channel.
-     * @param username - The sender's identity label.
-     * @param messageContent - The raw text content of the message.
+     * packages and sends a user message to the broadcast channel.
+     * @param username - the sender's identity label.
+     * @param messageContent - the raw text content of the message.
      */
     public dispatchChatMessage(username: string, messageContent: string): void {
         this.emitDataToWebSocketServer({
@@ -71,21 +76,21 @@ export class WebSocketCommunicationService implements OnDestroy {
     }
 
     /**
-     * Provides a cold stream of incoming chat messages for components to subscribe to.
+     * provides a cold stream of incoming chat messages for components to subscribe to.
      */
     public observeIncomingChatMessages(): Observable<ChatMessage> {
         return this.chatMessageHistoryStream.asObservable();
     }
 
     /**
-     * Provides a cold stream of the current online user list for components to subscribe to.
+     * provides a cold stream of the current online user list for components to subscribe to.
      */
     public observeActiveUserListUpdates(): Observable<string[]> {
         return this.activeUserListStream.asObservable();
     }
 
     /**
-     * Lifecycle hook to ensure resources are released and streams are completed when the service is destroyed.
+     * lifecycle hook to ensure resources are released and streams are completed when the service is destroyed.
      */
     public ngOnDestroy(): void {
         this.terminateWebSocketConnection();
@@ -93,7 +98,7 @@ export class WebSocketCommunicationService implements OnDestroy {
         this.activeUserListStream.complete();
     }
 
-    // ── Internal Helper Methods ─────────────────────────────────────
+    // internal helper methods
 
     private processIncomingWebSocketMessage(messageEvent: MessageEvent): void {
         let parsedMessageData: any;
@@ -101,12 +106,19 @@ export class WebSocketCommunicationService implements OnDestroy {
         try {
             parsedMessageData = JSON.parse(messageEvent.data);
         } catch (jsonParsingError) {
-            // Silently ignore malformed non-JSON data from the server channel
+            // silently ignore malformed non-json data from the server channel
             return;
         }
 
         if (parsedMessageData.type === 'chat') {
             this.notifyNewChatMessage(parsedMessageData);
+        }
+
+        if (parsedMessageData.type === 'system') {
+            this.notifyNewChatMessage({
+                ...parsedMessageData,
+                username: 'System'
+            });
         }
 
         if (parsedMessageData.type === 'users') {
@@ -127,13 +139,24 @@ export class WebSocketCommunicationService implements OnDestroy {
         this.activeUserListStream.next(updatedUserList);
     }
 
-    private emitDataToWebSocketServer(dataObject: object): void {
-        const isConnectionEstablished = this.webSocketInstance &&
-            this.webSocketInstance.readyState === WebSocket.OPEN;
+    private messageQueueBeforeConnectionOpen: string[] = [];
 
-        if (isConnectionEstablished) {
-            const dataStringPayload = JSON.stringify(dataObject);
-            this.webSocketInstance!.send(dataStringPayload);
+    private emitDataToWebSocketServer(dataObject: object): void {
+        const dataStringPayload = JSON.stringify(dataObject);
+
+        if (this.webSocketInstance && this.webSocketInstance.readyState === WebSocket.OPEN) {
+            this.webSocketInstance.send(dataStringPayload);
+        } else if (this.webSocketInstance && this.webSocketInstance.readyState === WebSocket.CONNECTING) {
+            this.messageQueueBeforeConnectionOpen.push(dataStringPayload);
+        }
+    }
+
+    private flushMessageQueueAfterConnection(): void {
+        while (this.messageQueueBeforeConnectionOpen.length > 0) {
+            const nextMessage = this.messageQueueBeforeConnectionOpen.shift();
+            if (nextMessage && this.webSocketInstance && this.webSocketInstance.readyState === WebSocket.OPEN) {
+                this.webSocketInstance.send(nextMessage);
+            }
         }
     }
 

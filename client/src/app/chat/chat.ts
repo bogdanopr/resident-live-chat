@@ -19,8 +19,8 @@ import { Subscription } from 'rxjs';
 import { WebSocketCommunicationService, ChatMessage } from '../websocket.service';
 
 /**
- * Main UI component for the Resident Live Chat application.
- * Manages the display of message history, the list of online participants, and the chat entry/messaging interface.
+ * main ui component for the resident live chat application.
+ * manages the display of message history, the list of online participants, and the chat entry/messaging interface.
  */
 @Component({
     selector: 'app-chat',
@@ -31,7 +31,7 @@ import { WebSocketCommunicationService, ChatMessage } from '../websocket.service
 })
 export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewChecked {
     /** 
-     * Reference to the scrollable message viewport to enable automatic scrolling to the latest message.
+     * reference to the scrollable message viewport to enable automatic scrolling to the latest message.
      */
     @ViewChild('messagesContainer')
     private messagesContainerElementReference!: ElementRef;
@@ -40,6 +40,7 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
     public chatMessageHistory: (ChatMessage & { pending?: boolean })[] = [];
     public onlineParticipantNameList: string[] = [];
     public isUserJoinedToConversation = false;
+    public isMobileParticipantListVisible = false;
 
     private isAutomaticScrollRequired = false;
     private incomingChatMessageSubscription!: Subscription;
@@ -50,7 +51,7 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
     private readonly changeDetectorReference = inject(ChangeDetectorRef);
 
     /**
-     * Getter to retrieve the sanitized username from the form group.
+     * getter to retrieve the sanitized username from the form group.
      */
     public get currentAuthenticatedUsername(): string {
         return this.clientChatFormGroup?.get('username')?.value?.trim() || '';
@@ -72,7 +73,7 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
     }
 
     /**
-     * Registers the user with the WebSocket server and grants access to the chat interface.
+     * registers the user with the websocket server and grants access to the chat interface.
      */
     public joinResidentConversationalCircle(): void {
         const trimmedUsername = this.currentAuthenticatedUsername;
@@ -80,12 +81,21 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
         if (trimmedUsername) {
             this.webSocketCommunicationService.registerUserToChatSession(trimmedUsername);
             this.isUserJoinedToConversation = true;
+            this.isMobileParticipantListVisible = false;
             this.changeDetectorReference.detectChanges();
         }
     }
 
     /**
-     * Packages the current form message, performs an optimistic UI update, and dispatches to the server.
+     * toggles the visibility of the participant list overlay on mobile devices.
+     */
+    public toggleMobileParticipantListVisibility(): void {
+        this.isMobileParticipantListVisible = !this.isMobileParticipantListVisible;
+        this.changeDetectorReference.detectChanges();
+    }
+
+    /**
+     * packages the current form message, performs an optimistic ui update, and dispatches to the server.
      */
     public dispatchNewChatMessage(): void {
         const trimmedMessageContent = this.clientChatFormGroup.get('message')?.value?.trim();
@@ -93,19 +103,19 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
 
         if (trimmedMessageContent && authenticatedUsername) {
             this.appendOptimisticMessageToHistory(authenticatedUsername, trimmedMessageContent);
-            this.isAutomaticScrollRequired = true;
-            this.changeDetectorReference.detectChanges();
-
             this.webSocketCommunicationService.dispatchChatMessage(authenticatedUsername, trimmedMessageContent);
 
-            // Clear input field after successful dispatch
+            // clear input field after successful dispatch
             this.clientChatFormGroup.get('message')?.reset();
+
+            this.isAutomaticScrollRequired = true;
+            this.changeDetectorReference.detectChanges();
         }
     }
 
     /**
-     * Converts a raw numeric timestamp into a human-readable HH:MM format.
-     * @param numericTimestamp - Unix timestamp in milliseconds.
+     * converts a raw numeric timestamp into a human-readable hh:mm format.
+     * @param numericTimestamp - unix timestamp in milliseconds.
      */
     public formatTimestampForDisplay(numericTimestamp: number): string {
         const dateObject = new Date(numericTimestamp);
@@ -116,14 +126,14 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
     }
 
     /**
-     * Helper to identify if a specific message was sent by the local authenticated user.
-     * @param senderUsername - The username associated with a chat message.
+     * helper to identify if a specific message was sent by the local authenticated user.
+     * @param senderUsername - the username associated with a chat message.
      */
     public isMessageSentByCurrentUser(senderUsername: string): boolean {
         return senderUsername === this.currentAuthenticatedUsername;
     }
 
-    // ── Internal Lifecycle & Setup Helpers ──────────────────────────
+    // internal lifecycle & setup helpers
 
     private initializeClientChatForm(): void {
         this.clientChatFormGroup = this.formBuilder.group({
@@ -158,17 +168,20 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
         const isIncomingMessageFromSelf = this.isMessageSentByCurrentUser(newIncomingMessage.username);
 
         if (isIncomingMessageFromSelf) {
-            // Resolve optimistic UI: Remove the oldest pending message that matches the same content
+            // resolve optimistic ui: remove the oldest pending message that matches the same content
             const indexOfMatchingPendingMessage = this.chatMessageHistory.findIndex(
                 (message) => message.pending === true && message.message === newIncomingMessage.message
             );
 
             if (indexOfMatchingPendingMessage !== -1) {
-                this.chatMessageHistory.splice(indexOfMatchingPendingMessage, 1);
+                this.chatMessageHistory = [
+                    ...this.chatMessageHistory.slice(0, indexOfMatchingPendingMessage),
+                    ...this.chatMessageHistory.slice(indexOfMatchingPendingMessage + 1)
+                ];
             }
         }
 
-        this.chatMessageHistory.push(newIncomingMessage);
+        this.chatMessageHistory = [...this.chatMessageHistory, newIncomingMessage];
         this.isAutomaticScrollRequired = true;
         this.changeDetectorReference.detectChanges();
     }
@@ -176,12 +189,12 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
     private handleActiveParticipantListSynchronization(rawList: string[]): void {
         const ownUsername = this.currentAuthenticatedUsername;
 
-        // Pin current user to the top, then sort others alphabetically
-        const otherParticipants = rawList
+        // pin current user to the top, then sort others alphabetically
+        const otherParticipants = (rawList || [])
             .filter((participantName) => participantName !== ownUsername)
             .sort((a, b) => a.localeCompare(b));
 
-        const isLocalUserInServerList = rawList.includes(ownUsername);
+        const isLocalUserInServerList = (rawList || []).includes(ownUsername);
 
         if (isLocalUserInServerList) {
             this.onlineParticipantNameList = [ownUsername, ...otherParticipants];
@@ -195,13 +208,16 @@ export class ChatMessagingComponent implements OnInit, OnDestroy, AfterViewCheck
     private appendOptimisticMessageToHistory(username: string, content: string): void {
         const temporaryMessageId = `pending-message-${Date.now()}`;
 
-        this.chatMessageHistory.push({
-            id: temporaryMessageId,
-            username: username,
-            message: content,
-            timestamp: Date.now(),
-            pending: true,
-        });
+        this.chatMessageHistory = [
+            ...this.chatMessageHistory,
+            {
+                id: temporaryMessageId,
+                username: username,
+                message: content,
+                timestamp: Date.now(),
+                pending: true,
+            }
+        ];
     }
 
     private performAutomaticScrollToBottomIfRequired(): void {

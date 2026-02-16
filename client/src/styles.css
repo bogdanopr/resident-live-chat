@@ -2,11 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
+:root {
+    --cream: #f9f7f2;
+    --surface: #ffffff;
+    --charcoal: #2d2926;
+    --taupe: #6b5e51;
+    --clay: #a69076;
+    --divider: #e8e4db;
+}
 
-    html,
-    body {
-        @apply h-full bg-cream text-charcoal antialiased;
-        letter-spacing: -0.01em;
-    }
+html,
+body {
+    height: 100%;
+    margin: 0;
+    background-color: var(--cream);
+    color: var(--charcoal);
 }

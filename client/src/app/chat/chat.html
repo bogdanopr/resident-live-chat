@@ -1,11 +1,11 @@
 <div class="h-full flex flex-col relative font-sans">
   <div class="flex h-full w-full transition-[filter] duration-500 ease-out"
     [class.blur-2xl]="!isUserJoinedToConversation" [class.pointer-events-none]="!isUserJoinedToConversation">
-    <!-- Sidebar: members -->
+    <!-- sidebar: members -->
     <aside class="hidden md:flex w-72 bg-surface border-r border-divider flex-col z-10 shrink-0">
       <div class="pt-8 px-6 pb-4 flex items-center gap-3">
-        <span class="w-2 h-2 bg-clay rounded-full"></span>
-        <span class="text-[0.85rem] font-semibold uppercase tracking-wider text-taupe">Members</span>
+        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+        <span class="text-[0.85rem] font-semibold uppercase tracking-wider text-taupe">Online Members</span>
         <span class="text-[0.85rem] text-clay ml-auto">{{ onlineParticipantNameList.length }}</span>
       </div>
       <ul class="list-none px-4 overflow-y-auto">
@@ -15,12 +15,14 @@
             class="w-8 h-8 bg-cream border border-divider flex items-center justify-center rounded-full text-[0.75rem] font-semibold text-taupe">
             {{ participantName.charAt(0).toUpperCase() }}
           </span>
-          <span class="text-[0.95rem] text-charcoal">
-            {{ participantName }}
+          <div class="flex items-baseline gap-2 min-w-0">
+            <span class="text-[0.95rem] text-charcoal font-medium truncate">
+              {{ participantName }}
+            </span>
             @if (participantName === currentAuthenticatedUsername) {
-            <span class="text-clay text-[0.8rem] ml-1">( You )</span>
+            <span class="text-clay text-[0.8rem] font-semibold shrink-0">( You )</span>
             }
-          </span>
+          </div>
         </li>
         }
         @empty {
@@ -29,31 +31,97 @@
       </ul>
     </aside>
 
-    <!-- Main chat area -->
+    <!-- main chat area -->
     <main class="flex-1 flex flex-col bg-cream relative min-w-0">
       <header class="py-6 px-8 bg-cream border-b border-divider">
-        <div class="max-w-3xl mx-auto w-full flex items-baseline gap-3">
-          <h1 class="text-2xl font-bold tracking-tighter text-charcoal leading-none">Resident</h1>
-          <div class="text-[0.9rem] text-taupe font-normal">Live Chat</div>
+        <div class="w-full flex items-center justify-between gap-3">
+          <div class="flex items-baseline gap-3">
+            <h1 class="text-2xl font-bold tracking-tighter text-charcoal leading-none">resident-live-chat</h1>
+          </div>
+
+          <!-- mobile: member list toggle -->
+          <button (click)="toggleMobileParticipantListVisibility()"
+            class="md:hidden flex items-center gap-2.5 px-4 py-2 rounded-sm bg-surface border border-divider shadow-sm transition-all duration-200 hover:bg-cream active:scale-95">
+            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span class="text-[0.85rem] font-semibold text-charcoal tracking-wide">Online Members</span>
+          </button>
         </div>
       </header>
 
-      <!-- Messages Feed -->
-      <div class="flex-1 overflow-y-auto px-4 md:px-8 py-8 flex flex-col gap-6 scroll-smooth" #messagesContainer>
+      <!-- mobile: member overlay -->
+      @if (isMobileParticipantListVisible) {
+      <div class="fixed inset-0 z-[110] md:hidden animate-in fade-in duration-300"
+        (click)="toggleMobileParticipantListVisibility()">
+        <!-- backdrop -->
+        <div class="absolute inset-0 bg-cream/60 backdrop-blur-md"></div>
+
+        <!-- drawer -->
+        <div
+          class="absolute left-0 top-0 bottom-0 w-72 bg-surface shadow-2xl border-r border-divider flex flex-col animate-in slide-in-from-left duration-500 ease-out"
+          (click)="$event.stopPropagation()">
+          <div class="pt-10 px-6 pb-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span class="text-[0.85rem] font-semibold uppercase tracking-wider text-taupe">Online Members</span>
+            </div>
+            <button (click)="toggleMobileParticipantListVisibility()" class="text-taupe hover:text-charcoal p-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <ul class="list-none px-4 overflow-y-auto">
+            @for (participantName of onlineParticipantNameList; track participantName) {
+            <li class="flex items-center gap-3 p-3 rounded-sm">
+              <span
+                class="w-8 h-8 bg-cream border border-divider flex items-center justify-center rounded-full text-[0.75rem] font-semibold text-taupe">
+                {{ participantName.charAt(0).toUpperCase() }}
+              </span>
+              <div class="flex items-baseline gap-2 min-w-0">
+                <span class="text-[0.95rem] text-charcoal font-medium truncate">
+                  {{ participantName }}
+                </span>
+                @if (participantName === currentAuthenticatedUsername) {
+                <span class="text-clay text-[0.8rem] font-semibold shrink-0">( You )</span>
+                }
+              </div>
+            </li>
+            }
+          </ul>
+        </div>
+      </div>
+      }
+
+      <!-- messages feed -->
+      <div class="flex-1 overflow-y-auto px-4 md:px-8 py-8 flex flex-col gap-6" #messagesContainer>
         @if (chatMessageHistory.length === 0) {
-        <div class="m-auto text-center text-taupe max-w-[300px] leading-relaxed">
-          <p>Start a conversation with your neighbors.</p>
+        <div class="m-auto text-center text-taupe leading-relaxed p-12">
+          <p class="text-[1.1rem]">Chat with your neighbors.</p>
         </div>
         }
-        @for (chatMessage of chatMessageHistory; track chatMessage.id) {
-        @let isSentBySelf = isMessageSentByCurrentUser(chatMessage.username);
-        <div
-          class="max-w-full md:max-w-[500px] w-fit p-4 md:px-5 md:py-4 rounded-sm shadow-sm ring-1 ring-charcoal/5 animate-in fade-in slide-in-from-bottom-2 duration-500"
-          [class.opacity-60]="chatMessage.pending" [class.self-end]="isSentBySelf" [class.bg-surface]="!isSentBySelf"
-          [class.bg-clay/10]="isSentBySelf" [class.border-l-2]="!isSentBySelf" [class.border-clay]="!isSentBySelf">
+        @for (chatMessage of chatMessageHistory; track $index) {
+        @if (chatMessage.username === 'System') {
+        <div class="w-full flex justify-center py-2">
+          <span
+            class="text-[0.8rem] text-taupe/60 italic px-4 py-1.5 bg-charcoal/5 rounded-full ring-1 ring-charcoal/5">
+            {{ chatMessage.message }}
+          </span>
+        </div>
+        } @else {
+        <div class="max-w-full md:max-w-[500px] w-fit p-4 md:px-5 md:py-4 rounded-sm shadow-sm ring-1 ring-charcoal/5"
+          [class.animate-in]="!chatMessage.pending" [class.fade-in]="!chatMessage.pending"
+          [class.slide-in-from-bottom-1]="!chatMessage.pending" [class.opacity-60]="chatMessage.pending"
+          [class.self-end]="isMessageSentByCurrentUser(chatMessage.username)"
+          [class.bg-surface]="!isMessageSentByCurrentUser(chatMessage.username)"
+          [class.border-l-2]="!isMessageSentByCurrentUser(chatMessage.username)"
+          [class.border-clay]="!isMessageSentByCurrentUser(chatMessage.username)"
+          [ngClass]="{ 'bg-clay/10': isMessageSentByCurrentUser(chatMessage.username) }">
           <div class="flex items-baseline gap-3 mb-2">
             <span class="text-[0.8rem] font-bold text-clay uppercase tracking-wider">
-              {{ isSentBySelf ? 'You' : chatMessage.username }}
+              {{ isMessageSentByCurrentUser(chatMessage.username) ? 'You' : chatMessage.username }}
             </span>
             <span class="text-[0.75rem] text-taupe">{{ formatTimestampForDisplay(chatMessage.timestamp) }}</span>
             @if (chatMessage.pending) {
@@ -63,13 +131,13 @@
           <div class="text-[1rem] leading-relaxed text-charcoal break-words">{{ chatMessage.message }}</div>
         </div>
         }
+        }
       </div>
 
-      <!-- Composer -->
+      <!-- composer -->
       @if (isUserJoinedToConversation) {
       <footer class="p-6 md:px-8 md:pt-6 md:pb-10 bg-cream border-t border-divider">
-        <form
-          class="max-w-3xl mx-auto flex items-center gap-4 bg-surface px-4 py-2 rounded-full shadow-md border border-divider"
+        <form class="w-full flex items-center gap-4 bg-surface px-4 py-2 rounded-full shadow-md border border-divider"
           [formGroup]="clientChatFormGroup" (ngSubmit)="dispatchNewChatMessage()">
           <input
             class="flex-1 border-none bg-transparent py-3 px-2 font-inherit text-[1rem] text-charcoal outline-none placeholder:text-taupe/40"
@@ -85,13 +153,13 @@
     </main>
   </div>
 
-  <!-- Entry Overlay -->
+  <!-- entry overlay -->
   @if (!isUserJoinedToConversation) {
   <div
     class="fixed inset-0 bg-cream/60 backdrop-blur-xl flex items-center justify-center p-6 z-[100] animate-in fade-in duration-700">
     <div class="bg-surface p-12 rounded-sm w-full max-w-[440px] shadow-2xl ring-1 ring-charcoal/5 text-center">
       <div class="mb-10">
-        <h2 class="text-[2rem] font-bold tracking-tight mb-3">Welcome</h2>
+        <h2 class="text-[2rem] font-bold tracking-tight mb-3">Welcome!</h2>
         <p class="text-taupe text-[1rem] leading-relaxed">Please identify yourself to enter the resident chat.</p>
       </div>
       <form [formGroup]="clientChatFormGroup" (ngSubmit)="joinResidentConversationalCircle()"
