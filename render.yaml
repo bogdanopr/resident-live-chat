@@ -10,8 +10,7 @@ services:
       - key: CLIENT_ORIGIN_URL
         fromService:
           name: res-chat-ui
-          type: web
-          property: url
+          envVarKey: RENDER_EXTERNAL_URL
 
   # 2. Frontend Static Site (Angular)
   - type: web
@@ -30,5 +29,4 @@ services:
       - key: BACKEND_URL
         fromService:
           name: res-chat-api
-          type: web
-          property: url
+          envVarKey: RENDER_EXTERNAL_URL
