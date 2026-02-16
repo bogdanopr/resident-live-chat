@@ -10,11 +10,11 @@ services:
       - key: CLIENT_ORIGIN_URL
         fromService:
           name: res-chat-ui
-          type: static_site
+          type: web
           property: url
 
   # 2. Frontend Static Site (Angular)
-  - type: static
+  - type: web
     name: res-chat-ui
     runtime: static
     rootDir: client
@@ -25,7 +25,7 @@ services:
       WSS_URL=$(echo $BACKEND_URL | sed 's/http/ws/')
       sed -i "s|ws://localhost:3005|$WSS_URL|g" src/environments/environment.ts
       npm run build
-    publishDir: dist/client/browser
+    staticPublishPath: dist/client/browser
     envVars:
       - key: BACKEND_URL
         fromService:
